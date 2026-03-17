@@ -1,0 +1,351 @@
+:root {
+  --bg: #f3ede1;
+  --bg-strong: #efe2c7;
+  --surface: rgba(255, 249, 240, 0.82);
+  --surface-strong: rgba(255, 248, 233, 0.95);
+  --surface-border: rgba(49, 41, 30, 0.14);
+  --text: #1f1811;
+  --text-soft: rgba(31, 24, 17, 0.72);
+  --accent: #b6461a;
+  --accent-soft: rgba(182, 70, 26, 0.12);
+  --good: #1d7a43;
+  --bad: #a53323;
+  --shadow: 0 24px 80px rgba(74, 53, 26, 0.18);
+  --radius-xl: 30px;
+  --radius-lg: 22px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(236, 128, 67, 0.22), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(34, 111, 130, 0.18), transparent 26%),
+    linear-gradient(180deg, var(--bg) 0%, #f8f3e8 100%);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.page-shell {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+  padding: 40px 20px 56px;
+}
+
+.ambient {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(12px);
+  opacity: 0.7;
+}
+
+.ambient-one {
+  top: 8%;
+  left: -120px;
+  width: 320px;
+  height: 320px;
+  background: rgba(240, 121, 61, 0.18);
+}
+
+.ambient-two {
+  right: -90px;
+  bottom: 12%;
+  width: 260px;
+  height: 260px;
+  background: rgba(57, 123, 142, 0.18);
+}
+
+.hero {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 460px);
+  gap: 28px;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.hero-copy,
+.form-card {
+  backdrop-filter: blur(20px);
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+}
+
+.hero-copy {
+  padding: 42px;
+  animation: fade-up 540ms ease both;
+}
+
+.eyebrow {
+  margin: 0 0 18px;
+  color: var(--accent);
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  max-width: 10ch;
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: clamp(3rem, 7vw, 5.6rem);
+  line-height: 0.94;
+  letter-spacing: -0.04em;
+}
+
+.lede {
+  max-width: 58ch;
+  margin: 22px 0 0;
+  color: var(--text-soft);
+  font-size: 1.08rem;
+  line-height: 1.65;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.pill-row span {
+  padding: 10px 14px;
+  border: 1px solid rgba(31, 24, 17, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.42);
+  font-size: 0.92rem;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 34px;
+}
+
+.meta-grid article {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(31, 24, 17, 0.08);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.36);
+}
+
+.meta-grid h2 {
+  margin: 0 0 8px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.meta-grid p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.hero-panel {
+  animation: fade-up 620ms ease 120ms both;
+}
+
+.form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.card-copy,
+.helper-copy,
+.status-line {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.55;
+}
+
+.helper-copy strong {
+  color: var(--text);
+}
+
+.field-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field-shell label {
+  font-size: 0.94rem;
+  font-weight: 600;
+}
+
+.composer {
+  min-height: 220px;
+  resize: vertical;
+  padding: 18px 18px 56px;
+  border: 1px solid rgba(31, 24, 17, 0.14);
+  border-radius: 22px;
+  background: var(--surface-strong);
+  color: var(--text);
+  line-height: 1.6;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.composer:focus {
+  outline: none;
+  border-color: rgba(182, 70, 26, 0.5);
+  box-shadow: 0 0 0 4px rgba(182, 70, 26, 0.11);
+}
+
+.field-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+}
+
+.notice {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(31, 24, 17, 0.08);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.notice.warning {
+  border-color: rgba(182, 70, 26, 0.24);
+  background: var(--accent-soft);
+}
+
+.notice.success {
+  border-color: rgba(29, 122, 67, 0.22);
+  background: rgba(29, 122, 67, 0.08);
+}
+
+.notice.error {
+  border-color: rgba(165, 51, 35, 0.22);
+  background: rgba(165, 51, 35, 0.08);
+}
+
+.submit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.submit-button {
+  min-height: 54px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2f2420 0%, #be5226 100%);
+  color: white;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease;
+}
+
+.submit-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 36px rgba(113, 47, 19, 0.28);
+}
+
+.submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.microcopy {
+  color: var(--text-soft);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.turnstile-shell {
+  min-height: 66px;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 920px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-copy {
+    padding: 32px 26px;
+  }
+
+  .hero h1 {
+    max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    padding: 18px 14px 32px;
+  }
+
+  .hero-copy,
+  .form-card {
+    border-radius: 24px;
+  }
+
+  .hero-copy,
+  .form-card {
+    padding: 22px 18px;
+  }
+
+  .meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
