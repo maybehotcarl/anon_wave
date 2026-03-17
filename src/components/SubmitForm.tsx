@@ -72,7 +72,7 @@ export function SubmitForm({
       "error-callback": () => {
         setTurnstileToken("");
       },
-      theme: "light",
+      theme: "auto",
     });
 
     return () => {

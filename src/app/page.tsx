@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SubmitForm } from "@/components/SubmitForm";
 import { getPublicAppConfig } from "@/lib/env";
 
@@ -6,40 +7,48 @@ export default function Home() {
 
   return (
     <main className="page-shell">
-      <div className="ambient ambient-one" aria-hidden="true" />
-      <div className="ambient ambient-two" aria-hidden="true" />
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">anonwave.live</p>
+      <nav className="nav">
+        <Link className="nav-brand" href="/">anonwave.live</Link>
+        <ul className="nav-links">
+          <li><a href="https://6529.io" target="_blank" rel="noopener noreferrer">6529.io</a></li>
+        </ul>
+      </nav>
+
+      <div className="page-content">
+        <section className="hero">
           <h1>Post to the Anon Wave without an account.</h1>
           <p className="lede">
             Write it, pass the captcha, and the site posts your message into the
-            live 6529 wave. No wallet connect. No login wall. Just the post.
+            live 6529 wave. No wallet. No login. Just the post.
           </p>
           <div className="pill-row" aria-label="product traits">
             <span>No login</span>
             <span>Captcha protected</span>
             <span>Rate limited</span>
           </div>
-          <div className="meta-grid">
-            <article>
-              <h2>Target Wave</h2>
-              <p>{config.waveId}</p>
-            </article>
-            <article>
-              <h2>Posting Mode</h2>
-              <p>{config.integrationReady ? "Relay configured" : "Relay pending"}</p>
-            </article>
+        </section>
+
+        <div className="cards-grid">
+          <div className="info-card">
+            <h2>Target Wave</h2>
+            <p>{config.waveId}</p>
+          </div>
+          <div className="info-card">
+            <h2>Posting Mode</h2>
+            <p>{config.integrationReady ? "Relay configured" : "Relay pending"}</p>
           </div>
         </div>
-        <div className="hero-panel">
-          <SubmitForm
-            waveId={config.waveId}
-            turnstileSiteKey={config.turnstileSiteKey}
-            integrationReady={config.integrationReady}
-          />
-        </div>
-      </section>
+
+        <SubmitForm
+          waveId={config.waveId}
+          turnstileSiteKey={config.turnstileSiteKey}
+          integrationReady={config.integrationReady}
+        />
+      </div>
+
+      <footer className="site-footer">
+        <p>anonwave.live &middot; 1% of nothing &middot; <a href="https://6529.io" target="_blank" rel="noopener noreferrer">6529.io</a></p>
+      </footer>
     </main>
   );
 }
