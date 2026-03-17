@@ -3,8 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://anonwave.live"),
-  title: "anonwave.live",
-  description: "Anonymous submissions posted into the Anon Wave on 6529.",
+  title: "anonwave.live — say what you actually think",
+  description: "Anonymous honest feedback, rumors, and gossip posted straight into the 6529 Anon Wave. No wallet. No login. No trail.",
 };
 
 export default function RootLayout({

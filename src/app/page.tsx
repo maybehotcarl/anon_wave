@@ -16,14 +16,15 @@ export default function Home() {
 
       <div className="page-content">
         <section className="hero">
-          <h1>Post to the Anon Wave without an account.</h1>
+          <h1>Say what you actually think.</h1>
           <p className="lede">
-            Write it, pass the captcha, and the site posts your message into the
-            live 6529 wave. No wallet. No login. Just the post.
+            Share the honest feedback no one will say out loud, the rumors
+            worth repeating, and the gossip people need to hear — posted
+            anonymously into the 6529 Anon Wave. No wallet. No login. No trail.
           </p>
           <div className="pill-row" aria-label="product traits">
-            <span>No login</span>
-            <span>Captcha protected</span>
+            <span>Fully anonymous</span>
+            <span>No wallet required</span>
             <span>Rate limited</span>
           </div>
         </section>
@@ -47,7 +48,7 @@ export default function Home() {
       </div>
 
       <footer className="site-footer">
-        <p>anonwave.live &middot; 1% of nothing &middot; <a href="https://6529.io" target="_blank" rel="noopener noreferrer">6529.io</a></p>
+        <p>anonwave.live &middot; Honest talk, not doxxing. &middot; <a href="https://6529.io" target="_blank" rel="noopener noreferrer">6529.io</a></p>
       </footer>
     </main>
   );

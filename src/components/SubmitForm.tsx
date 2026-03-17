@@ -43,7 +43,7 @@ export function SubmitForm({
     text: string;
   }>({
     tone: "idle",
-    text: "Your submission goes through this site and then directly into the target wave.",
+    text: "Your post goes straight into the wave. No account is linked, no identity is attached.",
   });
   const [isPending, startTransition] = useTransition();
 
@@ -119,7 +119,7 @@ export function SubmitForm({
 
     setStatus({
       tone: "success",
-      text: "Submission accepted. If 6529 accepts the drop, it should appear in the wave shortly.",
+      text: "Sent. Your anonymous drop should appear in the wave shortly.",
     });
   }
 
@@ -132,7 +132,7 @@ export function SubmitForm({
 
     setStatus({
       tone: "idle",
-      text: "Sending your message to 6529.",
+      text: "Dropping your message into the wave...",
     });
 
     startTransition(async () => {
@@ -162,9 +162,9 @@ export function SubmitForm({
 
       <form className="form-card" onSubmit={handleSubmit}>
         <div>
-          <h2 className="card-title">Send an anonymous post</h2>
+          <h2 className="card-title">Drop something anonymous</h2>
           <p className="card-copy">
-            The message targets wave <strong>{waveId}</strong>.
+            Tough feedback, rumors, gossip — whatever needs saying. Posted to wave <strong>{waveId}</strong>.
           </p>
         </div>
 
@@ -182,7 +182,7 @@ export function SubmitForm({
           <textarea
             id="message"
             className="composer"
-            placeholder="Post anything."
+            placeholder="What needs to be said?"
             value={message}
             maxLength={MAX_MESSAGE_LENGTH}
             onChange={(event) => {
@@ -191,8 +191,7 @@ export function SubmitForm({
           />
           <div className="field-meta">
             <span>
-              No login. IP is only used server-side for abuse protection and is not
-              attached to the public post.
+              Fully anonymous. Your IP is never attached to the post.
             </span>
             <span>{remainingChars} chars left</span>
           </div>
@@ -211,7 +210,7 @@ export function SubmitForm({
           )}
 
           <button className="submit-button" type="submit" disabled={!canSubmit}>
-            {isPending ? "Sending..." : "Send To The Wave"}
+            {isPending ? "Dropping..." : "Drop It"}
           </button>
         </div>
 
@@ -228,9 +227,9 @@ export function SubmitForm({
         </div>
 
         <p className="microcopy">
-          This site trims whitespace, rate limits by client IP, and caps message
-          length at {MAX_MESSAGE_LENGTH} characters. It does not attach your
-          location to the wave post.
+          Be honest, not harmful. No doxxing, no personal addresses or phone
+          numbers, no threats. This site is for candid talk — not for ruining
+          lives. Messages are rate limited and capped at {MAX_MESSAGE_LENGTH} characters.
         </p>
       </form>
     </>
