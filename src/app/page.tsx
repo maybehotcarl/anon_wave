@@ -10,6 +10,7 @@ export default function Home() {
       <nav className="nav">
         <Link className="nav-brand" href="/">anonwave.live</Link>
         <ul className="nav-links">
+          <li><a href="https://6529.io/waves/3464b59a-132b-4cd9-894d-c8b8e277187d" target="_blank" rel="noopener noreferrer">View the Wave</a></li>
           <li><a href="https://6529.io" target="_blank" rel="noopener noreferrer">6529.io</a></li>
         </ul>
       </nav>
