@@ -2,7 +2,6 @@
 
 import Script from "next/script";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { getMessagePolicyViolation } from "@/lib/message-policy";
 
 declare global {
   interface Window {
@@ -86,11 +85,9 @@ export function SubmitForm({
   }, [scriptLoaded, turnstileSiteKey]);
 
   const remainingChars = MAX_MESSAGE_LENGTH - message.length;
-  const policyViolation = getMessagePolicyViolation(message);
   const canSubmit =
     message.trim().length > 0 &&
     message.length <= MAX_MESSAGE_LENGTH &&
-    !policyViolation &&
     !isPending &&
     (!turnstileSiteKey || turnstileToken.length > 0);
 
@@ -184,22 +181,17 @@ export function SubmitForm({
           <label htmlFor="message">Message</label>
           <textarea
             id="message"
-            className={policyViolation ? "composer composer-error" : "composer"}
+            className="composer"
             placeholder="What needs to be said?"
             value={message}
             maxLength={MAX_MESSAGE_LENGTH}
             aria-describedby="message-policy"
-            aria-invalid={Boolean(policyViolation)}
             onChange={(event) => {
               setMessage(event.target.value);
             }}
           />
           <div className="field-meta" id="message-policy">
-            <span className={policyViolation ? "field-warning" : undefined}>
-              {policyViolation
-                ? policyViolation
-                : "Fully anonymous. Your IP is never attached to the post."}
-            </span>
+            <span>Fully anonymous. Your IP is never attached to the post.</span>
             <span>{remainingChars} chars left</span>
           </div>
         </div>
@@ -235,7 +227,7 @@ export function SubmitForm({
 
         <p className="microcopy">
           Be honest, not harmful. No doxxing, no personal addresses or phone
-          numbers, no links, no threats. This site is for candid talk — not for ruining
+          numbers, no threats. This site is for candid talk — not for ruining
           lives. Messages are rate limited and capped at {MAX_MESSAGE_LENGTH} characters.
         </p>
       </form>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
-import { getMessagePolicyViolation } from "@/lib/message-policy";
+import { shouldSilentlyDropMessage } from "@/lib/message-policy";
 import { consumeSubmissionQuota } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { postToWave } from "@/lib/wave-adapter";
@@ -51,15 +51,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const policyViolation = getMessagePolicyViolation(message);
-
-  if (policyViolation) {
-    return NextResponse.json(
-      { error: policyViolation },
-      { status: 400 },
-    );
-  }
-
   const clientIp = getClientIp(request);
   const turnstileResult = await verifyTurnstile({
     ip: clientIp,
@@ -94,6 +85,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (shouldSilentlyDropMessage(message)) {
+    return NextResponse.json({ ok: true });
+  }
+
   const env = getServerEnv();
   const postResult = await postToWave({
     message,
@@ -113,6 +108,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    downstreamId: postResult.downstreamId,
   });
 }

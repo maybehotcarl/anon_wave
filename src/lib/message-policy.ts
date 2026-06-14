@@ -1,9 +1,3 @@
-export const BLOCKED_LINK_MESSAGE =
-  "Links are not allowed in anonymous posts. Please remove URLs and domains before posting.";
-
-export const BLOCKED_REFERENCE_MESSAGE =
-  "Off-platform contact info and high-risk solicitation terms are not allowed in anonymous posts.";
-
 const ACTIVE_LINK_PATTERNS = [
   /(?:^|[\s([{<])(?:https?:\/\/|ftp:\/\/|www\.)[^\s<>()]+/iu,
   /(?:^|[\s([{<])(?:mailto|tel|sms):[^\s<>()]+/iu,
@@ -31,14 +25,6 @@ export function containsBlockedReference(message: string) {
   return BLOCKED_REFERENCE_PATTERNS.some((pattern) => pattern.test(message));
 }
 
-export function getMessagePolicyViolation(message: string) {
-  if (containsActiveLink(message)) {
-    return BLOCKED_LINK_MESSAGE;
-  }
-
-  if (containsBlockedReference(message)) {
-    return BLOCKED_REFERENCE_MESSAGE;
-  }
-
-  return "";
+export function shouldSilentlyDropMessage(message: string) {
+  return containsActiveLink(message) || containsBlockedReference(message);
 }
