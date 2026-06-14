@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
+import { BLOCKED_LINK_MESSAGE, containsActiveLink } from "@/lib/message-policy";
 import { consumeSubmissionQuota } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { postToWave } from "@/lib/wave-adapter";
@@ -46,6 +47,13 @@ export async function POST(request: NextRequest) {
   if (message.length > MAX_MESSAGE_LENGTH) {
     return NextResponse.json(
       { error: `Message exceeds ${MAX_MESSAGE_LENGTH} characters.` },
+      { status: 400 },
+    );
+  }
+
+  if (containsActiveLink(message)) {
+    return NextResponse.json(
+      { error: BLOCKED_LINK_MESSAGE },
       { status: 400 },
     );
   }

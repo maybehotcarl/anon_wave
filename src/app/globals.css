@@ -269,6 +269,15 @@ textarea {
   box-shadow: 0 0 0 3px rgba(14, 118, 253, 0.15);
 }
 
+.composer.composer-error {
+  border-color: var(--bad);
+}
+
+.composer.composer-error:focus {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.15);
+}
+
 .field-meta {
   display: flex;
   align-items: center;
@@ -276,6 +285,11 @@ textarea {
   gap: 12px;
   color: var(--text-soft);
   font-size: 0.82rem;
+}
+
+.field-warning {
+  color: var(--bad);
+  font-weight: 600;
 }
 
 /* ── Notices ── */
