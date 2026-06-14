@@ -96,7 +96,19 @@ export async function POST(request: NextRequest) {
   }
 
   const env = getServerEnv();
+  const hasLevelProof =
+    payload.zkLevelProof !== undefined && payload.zkLevelProof !== null;
   const levelLabel = await verifyLevelProof(payload.zkLevelProof);
+
+  if (hasLevelProof && levelLabel === "0") {
+    return NextResponse.json(
+      {
+        error: "Level proof could not be verified. Verify again or use Level 0.",
+      },
+      { status: 400 },
+    );
+  }
+
   const postResult = await postToWave({
     message: formatWaveMessageWithLevel(message, levelLabel),
     waveId: env.waveId,
