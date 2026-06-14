@@ -1,6 +1,6 @@
 "use client";
 
-import type { BrowserProofResult, ZKSiteClient } from "@6529/zk-service/browser";
+import type { BrowserProofResult, ZKClient } from "@6529/zk-service/browser";
 import Script from "next/script";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
@@ -76,7 +76,7 @@ export function SubmitForm({
   const turnstileNodeRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   const walletProofJwtRef = useRef<string | null>(null);
-  const zkClientRef = useRef<ZKSiteClient | null>(null);
+  const zkClientRef = useRef<ZKClient | null>(null);
 
   useEffect(() => {
     if (
@@ -114,9 +114,9 @@ export function SubmitForm({
 
   async function getZkClient() {
     if (!zkClientRef.current) {
-      const { ZKSiteClient } = await import("@6529/zk-service/browser");
+      const { ZKClient } = await import("@6529/zk-service/browser");
 
-      zkClientRef.current = new ZKSiteClient({
+      zkClientRef.current = new ZKClient({
         apiUrl: ZK_API_URL,
         artifactBaseUrl: ZK_ARTIFACT_BASE_URL,
         getAuthToken: () => walletProofJwtRef.current,
@@ -127,6 +127,43 @@ export function SubmitForm({
     }
 
     return zkClientRef.current;
+  }
+
+  function isOutOfRangeProofError(message: string) {
+    return /^6529 level \d+ is not within range \[\d+, \d+\]$/.test(message);
+  }
+
+  function getProofPreparationFailureText(errors: string[]) {
+    const actionableError = errors.find((error) => !isOutOfRangeProofError(error));
+
+    if (!actionableError) {
+      return "The current proof tree has your wallet outside the supported level buckets. Your post can still go out as level 0.";
+    }
+
+    if (
+      actionableError.includes("Proof not found") ||
+      actionableError.includes("Request failed: 404")
+    ) {
+      return "This wallet is not in the current 6529 level proof tree yet. Your post can still go out as level 0.";
+    }
+
+    if (
+      actionableError.includes("Unauthorized") ||
+      actionableError.includes("Invalid wallet authentication token") ||
+      actionableError.includes("Request failed: 401")
+    ) {
+      return "The private verifier rejected the wallet proof token. Try verifying again, or post as level 0.";
+    }
+
+    if (
+      actionableError === "Load failed" ||
+      actionableError === "Failed to fetch" ||
+      actionableError.includes("NetworkError")
+    ) {
+      return "Could not reach the private verifier. Your post can still go out as level 0.";
+    }
+
+    return `Could not prepare a private level proof: ${actionableError}`;
   }
 
   function getVerificationErrorText(error: unknown) {
@@ -220,6 +257,7 @@ export function SubmitForm({
       });
 
       walletProofJwtRef.current = tokenResult.token;
+      const proofErrors: string[] = [];
 
       for (const bucket of VERIFIED_LEVEL_BUCKETS) {
         setVerificationStatus({
@@ -227,35 +265,39 @@ export function SubmitForm({
           text: `Checking level ${bucket.label}...`,
         });
 
-        const gate = await zk.checkLevelRange(
-          {
-            walletAddress,
-            levelMin: bucket.min,
-            levelMax: bucket.max,
-          },
-          (stage) => {
-            if (stage === "proving") {
-              setVerificationStatus({
-                tone: "idle",
-                text: `Proving level ${bucket.label} privately...`,
-              });
-            }
-          },
-        );
+        try {
+          const proofResult = await zk.proveLevelRange(
+            {
+              walletAddress,
+              levelMin: bucket.min,
+              levelMax: bucket.max,
+            },
+            (stage) => {
+              if (stage === "proving") {
+                setVerificationStatus({
+                  tone: "idle",
+                  text: `Proving level ${bucket.label} privately...`,
+                });
+              }
+            },
+          );
 
-        if (gate.status === "verified" && gate.proofResult) {
-          setLevelProof({ bucket, proofResult: gate.proofResult });
+          setLevelProof({ bucket, proofResult });
           setVerificationStatus({
             tone: "success",
-            text: `Verified 6529 level ${bucket.label}.`,
+            text: `Prepared private proof for 6529 level ${bucket.label}. It will be verified when you post.`,
           });
           return;
+        } catch (error) {
+          proofErrors.push(
+            error instanceof Error ? error.message : String(error),
+          );
         }
       }
 
       setVerificationStatus({
         tone: "error",
-        text: "Could not verify a 6529 level bucket. Your post can still go out as level 0.",
+        text: getProofPreparationFailureText(proofErrors),
       });
     } catch (error) {
       setVerificationStatus({
