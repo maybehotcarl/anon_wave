@@ -1,10 +1,20 @@
 "use client";
 
+import { ZKSiteClient, type BrowserProofResult } from "@6529/zk-service/browser";
 import Script from "next/script";
 import { useEffect, useRef, useState, useTransition } from "react";
+import {
+  UNVERIFIED_LEVEL_LABEL,
+  VERIFIED_LEVEL_BUCKETS,
+  type LevelBucket,
+  type LevelLabel,
+} from "@/lib/level-buckets";
 
 declare global {
   interface Window {
+    ethereum?: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+    };
     turnstile?: {
       render: (
         container: HTMLElement,
@@ -29,6 +39,13 @@ type SubmitFormProps = {
 };
 
 const MAX_MESSAGE_LENGTH = 1500;
+const ZK_API_URL = "https://zkyc.solutions";
+const ZK_ARTIFACT_BASE_URL = "https://zkyc.solutions/api/artifacts";
+
+type VerifiedLevelProof = {
+  bucket: LevelBucket;
+  proofResult: BrowserProofResult;
+};
 
 export function SubmitForm({
   integrationReady,
@@ -38,6 +55,15 @@ export function SubmitForm({
   const [message, setMessage] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [isVerifyingLevel, setIsVerifyingLevel] = useState(false);
+  const [levelProof, setLevelProof] = useState<VerifiedLevelProof | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<{
+    tone: "idle" | "success" | "error";
+    text: string;
+  }>({
+    tone: "idle",
+    text: "Optional: verify a 6529 level bucket privately. Skip it to post as level 0.",
+  });
   const [status, setStatus] = useState<{
     tone: "idle" | "success" | "error";
     text: string;
@@ -49,6 +75,8 @@ export function SubmitForm({
 
   const turnstileNodeRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const walletProofJwtRef = useRef<string | null>(null);
+  const zkClientRef = useRef<ZKSiteClient | null>(null);
 
   useEffect(() => {
     if (
@@ -84,12 +112,148 @@ export function SubmitForm({
     };
   }, [scriptLoaded, turnstileSiteKey]);
 
+  function getZkClient() {
+    if (!zkClientRef.current) {
+      zkClientRef.current = new ZKSiteClient({
+        apiUrl: ZK_API_URL,
+        artifactBaseUrl: ZK_ARTIFACT_BASE_URL,
+        getAuthToken: () => walletProofJwtRef.current,
+        timeoutMs: 15000,
+        retries: 2,
+        retryDelayMs: 250,
+      });
+    }
+
+    return zkClientRef.current;
+  }
+
+  function getLevelLabel(): LevelLabel {
+    return levelProof?.bucket.label ?? UNVERIFIED_LEVEL_LABEL;
+  }
+
   const remainingChars = MAX_MESSAGE_LENGTH - message.length;
   const canSubmit =
     message.trim().length > 0 &&
     message.length <= MAX_MESSAGE_LENGTH &&
     !isPending &&
+    !isVerifyingLevel &&
     (!turnstileSiteKey || turnstileToken.length > 0);
+
+  async function requestWalletAddress() {
+    const provider = window.ethereum;
+
+    if (!provider) {
+      throw new Error("No browser wallet found.");
+    }
+
+    const accounts = await provider.request({ method: "eth_requestAccounts" });
+
+    if (
+      !Array.isArray(accounts) ||
+      typeof accounts[0] !== "string" ||
+      !accounts[0]
+    ) {
+      throw new Error("No wallet account was selected.");
+    }
+
+    return accounts[0];
+  }
+
+  async function signWalletMessage(walletAddress: string, messageToSign: string) {
+    const provider = window.ethereum;
+
+    if (!provider) {
+      throw new Error("No browser wallet found.");
+    }
+
+    const signature = await provider.request({
+      method: "personal_sign",
+      params: [messageToSign, walletAddress],
+    });
+
+    if (typeof signature !== "string") {
+      throw new Error("Wallet did not return a signature.");
+    }
+
+    return signature;
+  }
+
+  async function verifyLevelBucket() {
+    setIsVerifyingLevel(true);
+    setLevelProof(null);
+    setVerificationStatus({
+      tone: "idle",
+      text: "Waiting for wallet signature...",
+    });
+
+    try {
+      const walletAddress = await requestWalletAddress();
+      const zk = getZkClient();
+      const tokenResult = await zk.getWalletProofToken({
+        walletAddress,
+        chainId: 1,
+        signMessage: (messageToSign) =>
+          signWalletMessage(walletAddress, messageToSign),
+      });
+
+      walletProofJwtRef.current = tokenResult.token;
+
+      for (const bucket of VERIFIED_LEVEL_BUCKETS) {
+        setVerificationStatus({
+          tone: "idle",
+          text: `Checking level ${bucket.label}...`,
+        });
+
+        const gate = await zk.checkLevelRange(
+          {
+            walletAddress,
+            levelMin: bucket.min,
+            levelMax: bucket.max,
+          },
+          (stage) => {
+            if (stage === "proving") {
+              setVerificationStatus({
+                tone: "idle",
+                text: `Proving level ${bucket.label} privately...`,
+              });
+            }
+          },
+        );
+
+        if (gate.status === "verified" && gate.proofResult) {
+          setLevelProof({ bucket, proofResult: gate.proofResult });
+          setVerificationStatus({
+            tone: "success",
+            text: `Verified 6529 level ${bucket.label}.`,
+          });
+          return;
+        }
+      }
+
+      setVerificationStatus({
+        tone: "error",
+        text: "Could not verify a 6529 level bucket. Your post can still go out as level 0.",
+      });
+    } catch (error) {
+      setVerificationStatus({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Level verification failed. Your post can still go out as level 0.",
+      });
+    } finally {
+      setIsVerifyingLevel(false);
+    }
+  }
+
+  function clearLevelProof() {
+    setLevelProof(null);
+    setVerificationStatus({
+      tone: "idle",
+      text: "Optional: verify a 6529 level bucket privately. Skip it to post as level 0.",
+    });
+  }
 
   async function submitMessage() {
     const response = await fetch("/api/submit", {
@@ -100,6 +264,7 @@ export function SubmitForm({
       body: JSON.stringify({
         message,
         turnstileToken,
+        zkLevelProof: levelProof?.proofResult,
       }),
     });
 
@@ -112,6 +277,7 @@ export function SubmitForm({
     }
 
     setMessage("");
+    clearLevelProof();
     setTurnstileToken("");
     if (widgetIdRef.current) {
       window.turnstile?.reset(widgetIdRef.current);
@@ -176,6 +342,46 @@ export function SubmitForm({
             </p>
           </div>
         ) : null}
+
+        <div className="verification-panel">
+          <div>
+            <h3>6529 level</h3>
+            <p>
+              Wave output will show level <strong>{getLevelLabel()}</strong>.
+            </p>
+          </div>
+          <div className="verification-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={isVerifyingLevel || isPending}
+              onClick={verifyLevelBucket}
+            >
+              {isVerifyingLevel ? "Verifying..." : "Verify Privately"}
+            </button>
+            {levelProof ? (
+              <button
+                className="text-button"
+                type="button"
+                disabled={isVerifyingLevel || isPending}
+                onClick={clearLevelProof}
+              >
+                Use Level 0
+              </button>
+            ) : null}
+          </div>
+          <div
+            className={
+              verificationStatus.tone === "success"
+                ? "notice success"
+                : verificationStatus.tone === "error"
+                  ? "notice error"
+                  : "notice"
+            }
+          >
+            <p className="status-line">{verificationStatus.text}</p>
+          </div>
+        </div>
 
         <div className="field-shell">
           <label htmlFor="message">Message</label>

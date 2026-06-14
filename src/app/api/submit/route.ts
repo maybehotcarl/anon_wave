@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
+import { formatWaveMessageWithLevel } from "@/lib/level-buckets";
 import { shouldSilentlyDropMessage } from "@/lib/message-policy";
 import { consumeSubmissionQuota } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { postToWave } from "@/lib/wave-adapter";
+import { verifyLevelProof } from "@/lib/zk-level-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +26,14 @@ function sanitizeMessage(message: string) {
 }
 
 export async function POST(request: NextRequest) {
-  let payload: { message?: unknown; turnstileToken?: unknown };
+  let payload: { message?: unknown; turnstileToken?: unknown; zkLevelProof?: unknown };
 
   try {
-    payload = (await request.json()) as { message?: unknown; turnstileToken?: unknown };
+    payload = (await request.json()) as {
+      message?: unknown;
+      turnstileToken?: unknown;
+      zkLevelProof?: unknown;
+    };
   } catch {
     return NextResponse.json({ error: "Malformed JSON body." }, { status: 400 });
   }
@@ -90,8 +96,9 @@ export async function POST(request: NextRequest) {
   }
 
   const env = getServerEnv();
+  const levelLabel = await verifyLevelProof(payload.zkLevelProof);
   const postResult = await postToWave({
-    message,
+    message: formatWaveMessageWithLevel(message, levelLabel),
     waveId: env.waveId,
   });
 
