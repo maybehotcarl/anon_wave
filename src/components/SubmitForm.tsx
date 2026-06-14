@@ -1,6 +1,6 @@
 "use client";
 
-import { ZKSiteClient, type BrowserProofResult } from "@6529/zk-service/browser";
+import type { BrowserProofResult, ZKSiteClient } from "@6529/zk-service/browser";
 import Script from "next/script";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
@@ -39,8 +39,8 @@ type SubmitFormProps = {
 };
 
 const MAX_MESSAGE_LENGTH = 1500;
-const ZK_API_URL = "https://zkyc.solutions";
-const ZK_ARTIFACT_BASE_URL = "https://zkyc.solutions/api/artifacts";
+const ZK_API_URL = "/api/zkyc";
+const ZK_ARTIFACT_BASE_URL = "/api/zkyc/api/artifacts";
 
 type VerifiedLevelProof = {
   bucket: LevelBucket;
@@ -112,8 +112,10 @@ export function SubmitForm({
     };
   }, [scriptLoaded, turnstileSiteKey]);
 
-  function getZkClient() {
+  async function getZkClient() {
     if (!zkClientRef.current) {
+      const { ZKSiteClient } = await import("@6529/zk-service/browser");
+
       zkClientRef.current = new ZKSiteClient({
         apiUrl: ZK_API_URL,
         artifactBaseUrl: ZK_ARTIFACT_BASE_URL,
@@ -125,6 +127,22 @@ export function SubmitForm({
     }
 
     return zkClientRef.current;
+  }
+
+  function getVerificationErrorText(error: unknown) {
+    if (!(error instanceof Error)) {
+      return "Level verification failed. Your post can still go out as level 0.";
+    }
+
+    if (
+      error.message === "Load failed" ||
+      error.message === "Failed to fetch" ||
+      error.message.includes("NetworkError")
+    ) {
+      return "Could not reach the private verifier. Your post can still go out as level 0.";
+    }
+
+    return error.message;
   }
 
   function getLevelLabel(): LevelLabel {
@@ -188,7 +206,12 @@ export function SubmitForm({
 
     try {
       const walletAddress = await requestWalletAddress();
-      const zk = getZkClient();
+      setVerificationStatus({
+        tone: "idle",
+        text: "Loading private verifier...",
+      });
+
+      const zk = await getZkClient();
       const tokenResult = await zk.getWalletProofToken({
         walletAddress,
         chainId: 1,
@@ -237,10 +260,7 @@ export function SubmitForm({
     } catch (error) {
       setVerificationStatus({
         tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "Level verification failed. Your post can still go out as level 0.",
+        text: getVerificationErrorText(error),
       });
     } finally {
       setIsVerifyingLevel(false);
