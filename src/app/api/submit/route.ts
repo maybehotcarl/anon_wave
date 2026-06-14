@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
-import { BLOCKED_LINK_MESSAGE, containsActiveLink } from "@/lib/message-policy";
+import { getMessagePolicyViolation } from "@/lib/message-policy";
 import { consumeSubmissionQuota } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { postToWave } from "@/lib/wave-adapter";
@@ -51,9 +51,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (containsActiveLink(message)) {
+  const policyViolation = getMessagePolicyViolation(message);
+
+  if (policyViolation) {
     return NextResponse.json(
-      { error: BLOCKED_LINK_MESSAGE },
+      { error: policyViolation },
       { status: 400 },
     );
   }

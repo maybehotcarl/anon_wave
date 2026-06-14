@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { BLOCKED_LINK_MESSAGE, containsActiveLink } from "@/lib/message-policy";
+import { getMessagePolicyViolation } from "@/lib/message-policy";
 
 declare global {
   interface Window {
@@ -86,11 +86,11 @@ export function SubmitForm({
   }, [scriptLoaded, turnstileSiteKey]);
 
   const remainingChars = MAX_MESSAGE_LENGTH - message.length;
-  const hasActiveLink = containsActiveLink(message);
+  const policyViolation = getMessagePolicyViolation(message);
   const canSubmit =
     message.trim().length > 0 &&
     message.length <= MAX_MESSAGE_LENGTH &&
-    !hasActiveLink &&
+    !policyViolation &&
     !isPending &&
     (!turnstileSiteKey || turnstileToken.length > 0);
 
@@ -184,20 +184,20 @@ export function SubmitForm({
           <label htmlFor="message">Message</label>
           <textarea
             id="message"
-            className={hasActiveLink ? "composer composer-error" : "composer"}
+            className={policyViolation ? "composer composer-error" : "composer"}
             placeholder="What needs to be said?"
             value={message}
             maxLength={MAX_MESSAGE_LENGTH}
             aria-describedby="message-policy"
-            aria-invalid={hasActiveLink}
+            aria-invalid={Boolean(policyViolation)}
             onChange={(event) => {
               setMessage(event.target.value);
             }}
           />
           <div className="field-meta" id="message-policy">
-            <span className={hasActiveLink ? "field-warning" : undefined}>
-              {hasActiveLink
-                ? BLOCKED_LINK_MESSAGE
+            <span className={policyViolation ? "field-warning" : undefined}>
+              {policyViolation
+                ? policyViolation
                 : "Fully anonymous. Your IP is never attached to the post."}
             </span>
             <span>{remainingChars} chars left</span>
