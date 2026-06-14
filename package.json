@@ -9,7 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@6529/zk-service": "github:maybehotcarl/6529-zk-service#codex/deployable-zk-service-sdk",
+    "@6529/zk-service": "file:vendor/6529-zk-service-0.1.0.tgz",
     "@upstash/ratelimit": "^2.0.5",
     "@upstash/redis": "^1.35.3",
     "ethers": "^6.15.0",
