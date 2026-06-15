@@ -61,10 +61,6 @@ function getLevelProofError(result: VerifyLevelProofResult) {
     return "Current 6529 level tree could not be checked. Try again, or use Level 0.";
   }
 
-  if (result.reason === "verify_request_failed") {
-    return "Level proof verification did not finish. Verify again, or use Level 0.";
-  }
-
   return "Level proof could not be verified. Verify again or use Level 0.";
 }
 

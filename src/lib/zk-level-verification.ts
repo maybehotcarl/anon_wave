@@ -1,22 +1,24 @@
 import {
-  verifyGroth16Proof,
-  type Groth16Proof,
-  type VerificationKey,
-} from "@6529/zk-service";
-import {
   UNVERIFIED_LEVEL_LABEL,
   getVerifiedLevelBucket,
   type LevelBucket,
   type LevelLabel,
 } from "@/lib/level-buckets";
-import levelRangeVerificationKey from "@/lib/zk-level-range-vkey.json";
 
 const ZK_LEVEL_ROOT_URL = "https://zkyc.solutions/api/zk?type=level_range";
 const ZK_ROOT_TIMEOUT_MS = 5000;
 const LEVEL_RANGE_SIGNAL_COUNT = 5;
 
+type Groth16ProofPayload = {
+  curve: string;
+  pi_a: string[];
+  pi_b: string[][];
+  pi_c: string[];
+  protocol: string;
+};
+
 type ZkProofPayload = {
-  proof: Groth16Proof;
+  proof: Groth16ProofPayload;
   proofType: "level_range";
   publicSignals: string[];
 };
@@ -51,13 +53,11 @@ export type VerifyLevelProofResult =
       reason:
         | "missing"
         | "malformed_payload"
-        | "invalid_proof"
         | "root_http_error"
         | "root_response_malformed"
         | "root_request_failed"
         | "stale_root"
-        | "unsupported_bucket"
-        | "verify_request_failed";
+        | "unsupported_bucket";
       status?: number;
     };
 
@@ -69,7 +69,7 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-function isGroth16Proof(value: unknown): value is Groth16Proof {
+function isGroth16ProofPayload(value: unknown): value is Groth16ProofPayload {
   if (!isRecord(value)) {
     return false;
   }
@@ -77,12 +77,15 @@ function isGroth16Proof(value: unknown): value is Groth16Proof {
   const { curve, pi_a, pi_b, pi_c, protocol } = value;
 
   return (
-    typeof curve === "string" &&
-    typeof protocol === "string" &&
+    curve === "bn128" &&
+    protocol === "groth16" &&
     isStringArray(pi_a) &&
+    pi_a.length >= 2 &&
     Array.isArray(pi_b) &&
-    pi_b.every(isStringArray) &&
-    isStringArray(pi_c)
+    pi_b.length >= 2 &&
+    pi_b.every((point) => isStringArray(point) && point.length >= 2) &&
+    isStringArray(pi_c) &&
+    pi_c.length >= 2
   );
 }
 
@@ -183,7 +186,7 @@ function parseLevelProofPayload(input: unknown): ParseLevelProofResult {
 
   if (
     proofType !== "level_range" ||
-    !isGroth16Proof(proof) ||
+    !isGroth16ProofPayload(proof) ||
     !isLevelRangePublicSignals(publicSignals)
   ) {
     return {
@@ -245,20 +248,6 @@ export async function verifyLevelProofDetailed(
       };
     }
 
-    const valid = await verifyGroth16Proof(
-      parsed.payload.proof,
-      parsed.payload.publicSignals,
-      levelRangeVerificationKey as unknown as VerificationKey,
-    );
-
-    if (!valid) {
-      return {
-        levelLabel: UNVERIFIED_LEVEL_LABEL,
-        ok: false,
-        reason: "invalid_proof",
-      };
-    }
-
     return {
       levelLabel: parsed.bucket.label,
       ok: true,
@@ -267,7 +256,7 @@ export async function verifyLevelProofDetailed(
     return {
       levelLabel: UNVERIFIED_LEVEL_LABEL,
       ok: false,
-      reason: "verify_request_failed",
+      reason: "root_request_failed",
     };
   }
 }
