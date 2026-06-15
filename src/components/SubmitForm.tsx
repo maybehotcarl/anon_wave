@@ -39,6 +39,7 @@ type SubmitFormProps = {
 };
 
 const MAX_MESSAGE_LENGTH = 1500;
+const SUBMIT_TIMEOUT_MS = 30000;
 const ZK_API_URL = "/api/zkyc";
 const ZK_ARTIFACT_BASE_URL = "/api/zkyc/api/artifacts";
 
@@ -327,17 +328,37 @@ export function SubmitForm({
   }
 
   async function submitMessage() {
-    const response = await fetch("/api/submit", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message,
-        turnstileToken,
-        zkLevelProof: levelProof?.proofResult,
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      controller.abort();
+    }, SUBMIT_TIMEOUT_MS);
+
+    let response: Response;
+
+    try {
+      response = await fetch("/api/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          message,
+          turnstileToken,
+          zkLevelProof: levelProof?.proofResult,
+        }),
+      });
+    } catch (error) {
+      resetTurnstileChallenge();
+
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new Error("Submission timed out. Please try again.");
+      }
+
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
 
     const payload = (await response.json().catch(() => null)) as
       | { error?: string; ok?: boolean }

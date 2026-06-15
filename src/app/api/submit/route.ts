@@ -49,11 +49,20 @@ function getLevelProofError(result: VerifyLevelProofResult) {
     return "Level proof was already used. Verify again and submit with the new proof.";
   }
 
+  if (result.reason === "stale_root") {
+    return "Level proof is from an older 6529 tree. Verify again and submit with the new proof.";
+  }
+
   if (
-    result.reason === "verify_http_error" ||
-    result.reason === "verify_request_failed"
+    result.reason === "root_http_error" ||
+    result.reason === "root_request_failed" ||
+    result.reason === "root_response_malformed"
   ) {
-    return "Level verifier could not be reached. Verify again, or use Level 0.";
+    return "Current 6529 level tree could not be checked. Try again, or use Level 0.";
+  }
+
+  if (result.reason === "verify_request_failed") {
+    return "Level proof verification did not finish. Verify again, or use Level 0.";
   }
 
   return "Level proof could not be verified. Verify again or use Level 0.";

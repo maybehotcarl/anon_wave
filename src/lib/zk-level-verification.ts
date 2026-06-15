@@ -1,24 +1,31 @@
 import {
+  verifyGroth16Proof,
+  type Groth16Proof,
+  type VerificationKey,
+} from "@6529/zk-service";
+import {
   UNVERIFIED_LEVEL_LABEL,
   getVerifiedLevelBucket,
   type LevelBucket,
   type LevelLabel,
 } from "@/lib/level-buckets";
+import levelRangeVerificationKey from "@/lib/zk-level-range-vkey.json";
 
-const ZK_VERIFY_URL = "https://zkyc.solutions/api/zk";
+const ZK_LEVEL_ROOT_URL = "https://zkyc.solutions/api/zk?type=level_range";
+const ZK_ROOT_TIMEOUT_MS = 5000;
 const LEVEL_RANGE_SIGNAL_COUNT = 5;
 
 type ZkProofPayload = {
-  proof?: unknown;
-  proofType?: unknown;
-  publicSignals?: unknown;
+  proof: Groth16Proof;
+  proofType: "level_range";
+  publicSignals: string[];
 };
 
-type ZkVerifyResponse = {
-  error?: string;
-  reason?: string;
+type ZkRootResponse = {
+  data?: {
+    root?: unknown;
+  };
   success?: boolean;
-  valid?: boolean;
 };
 
 type ParseLevelProofResult =
@@ -44,16 +51,39 @@ export type VerifyLevelProofResult =
       reason:
         | "missing"
         | "malformed_payload"
+        | "invalid_proof"
+        | "root_http_error"
+        | "root_response_malformed"
+        | "root_request_failed"
+        | "stale_root"
         | "unsupported_bucket"
-        | "verify_http_error"
-        | "verify_rejected"
-        | "verify_response_malformed"
         | "verify_request_failed";
       status?: number;
     };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isGroth16Proof(value: unknown): value is Groth16Proof {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const { curve, pi_a, pi_b, pi_c, protocol } = value;
+
+  return (
+    typeof curve === "string" &&
+    typeof protocol === "string" &&
+    isStringArray(pi_a) &&
+    Array.isArray(pi_b) &&
+    pi_b.every(isStringArray) &&
+    isStringArray(pi_c)
+  );
 }
 
 function parsePublicSignal(value: unknown) {
@@ -65,7 +95,15 @@ function parsePublicSignal(value: unknown) {
   return Number.isSafeInteger(numberValue) ? numberValue : null;
 }
 
-function getBucketFromPublicSignals(publicSignals: unknown[]) {
+function isLevelRangePublicSignals(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length === LEVEL_RANGE_SIGNAL_COUNT &&
+    value.every((signal) => typeof signal === "string" && /^\d+$/.test(signal))
+  );
+}
+
+function getBucketFromPublicSignals(publicSignals: string[]) {
   if (publicSignals.length !== LEVEL_RANGE_SIGNAL_COUNT) {
     return null;
   }
@@ -78,6 +116,52 @@ function getBucketFromPublicSignals(publicSignals: unknown[]) {
   }
 
   return getVerifiedLevelBucket(levelMin, levelMax) ?? null;
+}
+
+function getMerkleRootFromPublicSignals(publicSignals: string[]) {
+  return publicSignals[0] ?? null;
+}
+
+async function fetchCurrentLevelRoot() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ZK_ROOT_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(ZK_LEVEL_ROOT_URL, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return {
+        ok: false as const,
+        reason: "root_http_error" as const,
+        status: response.status,
+      };
+    }
+
+    const result = (await response.json()) as ZkRootResponse;
+    const root = result.data?.root;
+
+    if (!result.success || typeof root !== "string" || !/^\d+$/.test(root)) {
+      return {
+        ok: false as const,
+        reason: "root_response_malformed" as const,
+      };
+    }
+
+    return {
+      ok: true as const,
+      root,
+    };
+  } catch {
+    return {
+      ok: false as const,
+      reason: "root_request_failed" as const,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function parseLevelProofPayload(input: unknown): ParseLevelProofResult {
@@ -97,7 +181,11 @@ function parseLevelProofPayload(input: unknown): ParseLevelProofResult {
 
   const { proof, proofType, publicSignals } = input;
 
-  if (proofType !== "level_range" || !isRecord(proof) || !Array.isArray(publicSignals)) {
+  if (
+    proofType !== "level_range" ||
+    !isGroth16Proof(proof) ||
+    !isLevelRangePublicSignals(publicSignals)
+  ) {
     return {
       ok: false,
       reason: "malformed_payload",
@@ -118,7 +206,7 @@ function parseLevelProofPayload(input: unknown): ParseLevelProofResult {
     ok: true,
     payload: {
       proof,
-      proofType,
+      proofType: "level_range",
       publicSignals,
     },
   };
@@ -138,39 +226,36 @@ export async function verifyLevelProofDetailed(
   }
 
   try {
-    const response = await fetch(ZK_VERIFY_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(parsed.payload),
-    });
+    const currentRoot = await fetchCurrentLevelRoot();
 
-    if (!response.ok) {
+    if (!currentRoot.ok) {
       return {
         levelLabel: UNVERIFIED_LEVEL_LABEL,
         ok: false,
-        reason: "verify_http_error",
-        status: response.status,
+        reason: currentRoot.reason,
+        status: currentRoot.status,
       };
     }
 
-    const result = (await response.json()) as ZkVerifyResponse;
-
-    if (typeof result.success !== "boolean" || typeof result.valid !== "boolean") {
+    if (getMerkleRootFromPublicSignals(parsed.payload.publicSignals) !== currentRoot.root) {
       return {
         levelLabel: UNVERIFIED_LEVEL_LABEL,
         ok: false,
-        reason: "verify_response_malformed",
+        reason: "stale_root",
       };
     }
 
-    if (!result.success || !result.valid) {
+    const valid = await verifyGroth16Proof(
+      parsed.payload.proof,
+      parsed.payload.publicSignals,
+      levelRangeVerificationKey as unknown as VerificationKey,
+    );
+
+    if (!valid) {
       return {
-        detail: result.reason ?? result.error,
         levelLabel: UNVERIFIED_LEVEL_LABEL,
         ok: false,
-        reason: "verify_rejected",
+        reason: "invalid_proof",
       };
     }
 
