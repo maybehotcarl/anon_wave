@@ -186,6 +186,14 @@ export function SubmitForm({
     return levelProof?.bucket.label ?? UNVERIFIED_LEVEL_LABEL;
   }
 
+  function resetTurnstileChallenge() {
+    setTurnstileToken("");
+
+    if (widgetIdRef.current) {
+      window.turnstile?.reset(widgetIdRef.current);
+    }
+  }
+
   const remainingChars = MAX_MESSAGE_LENGTH - message.length;
   const canSubmit =
     message.trim().length > 0 &&
@@ -287,6 +295,7 @@ export function SubmitForm({
             tone: "success",
             text: `Prepared private proof for 6529 level ${bucket.label}. It will be verified when you post.`,
           });
+          resetTurnstileChallenge();
           return;
         } catch (error) {
           proofErrors.push(
@@ -335,15 +344,13 @@ export function SubmitForm({
       | null;
 
     if (!response.ok) {
+      resetTurnstileChallenge();
       throw new Error(payload?.error ?? "Submission failed.");
     }
 
     setMessage("");
     clearLevelProof();
-    setTurnstileToken("");
-    if (widgetIdRef.current) {
-      window.turnstile?.reset(widgetIdRef.current);
-    }
+    resetTurnstileChallenge();
 
     setStatus({
       tone: "success",

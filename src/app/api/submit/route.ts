@@ -5,7 +5,10 @@ import { shouldSilentlyDropMessage } from "@/lib/message-policy";
 import { consumeSubmissionQuota } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { postToWave } from "@/lib/wave-adapter";
-import { verifyLevelProof } from "@/lib/zk-level-verification";
+import {
+  verifyLevelProofDetailed,
+  type VerifyLevelProofResult,
+} from "@/lib/zk-level-verification";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +28,59 @@ function sanitizeMessage(message: string) {
   return message.replace(/\r\n/g, "\n").trim();
 }
 
+function logSubmitIssue(
+  reason: string,
+  metadata: Record<string, boolean | number | string | string[] | undefined> = {},
+) {
+  console.warn("[anonwave_submit]", {
+    reason,
+    ...metadata,
+  });
+}
+
+function getLevelProofError(result: VerifyLevelProofResult) {
+  if (result.ok) {
+    return "";
+  }
+
+  const detail = result.detail?.toLowerCase() ?? "";
+
+  if (detail.includes("nullifier") || detail.includes("replay")) {
+    return "Level proof was already used. Verify again and submit with the new proof.";
+  }
+
+  if (
+    result.reason === "verify_http_error" ||
+    result.reason === "verify_request_failed"
+  ) {
+    return "Level verifier could not be reached. Verify again, or use Level 0.";
+  }
+
+  return "Level proof could not be verified. Verify again or use Level 0.";
+}
+
+function classifyLevelProofDetail(detail?: string) {
+  const lowerDetail = detail?.toLowerCase() ?? "";
+
+  if (!lowerDetail) {
+    return undefined;
+  }
+
+  if (lowerDetail.includes("nullifier") || lowerDetail.includes("replay")) {
+    return "replay_or_nullifier";
+  }
+
+  if (lowerDetail.includes("invalid")) {
+    return "invalid_proof";
+  }
+
+  if (lowerDetail.includes("stale") || lowerDetail.includes("expired")) {
+    return "stale_or_expired";
+  }
+
+  return "provided";
+}
+
 export async function POST(request: NextRequest) {
   let payload: { message?: unknown; turnstileToken?: unknown; zkLevelProof?: unknown };
 
@@ -35,6 +91,7 @@ export async function POST(request: NextRequest) {
       zkLevelProof?: unknown;
     };
   } catch {
+    logSubmitIssue("malformed_json");
     return NextResponse.json({ error: "Malformed JSON body." }, { status: 400 });
   }
 
@@ -44,6 +101,7 @@ export async function POST(request: NextRequest) {
   const message = sanitizeMessage(rawMessage);
 
   if (!message) {
+    logSubmitIssue("empty_message");
     return NextResponse.json(
       { error: "Message content is required." },
       { status: 400 },
@@ -51,6 +109,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (message.length > MAX_MESSAGE_LENGTH) {
+    logSubmitIssue("message_too_long", { length: message.length });
     return NextResponse.json(
       { error: `Message exceeds ${MAX_MESSAGE_LENGTH} characters.` },
       { status: 400 },
@@ -64,6 +123,10 @@ export async function POST(request: NextRequest) {
   });
 
   if (!turnstileResult.ok) {
+    logSubmitIssue("turnstile_failed", {
+      codes: turnstileResult.errorCodes,
+      status: turnstileResult.status,
+    });
     return NextResponse.json(
       { error: turnstileResult.error },
       { status: turnstileResult.status },
@@ -77,6 +140,8 @@ export async function POST(request: NextRequest) {
       1,
       Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000),
     );
+
+    logSubmitIssue("rate_limited", { retryAfter });
 
     return NextResponse.json(
       {
@@ -92,29 +157,37 @@ export async function POST(request: NextRequest) {
   }
 
   if (shouldSilentlyDropMessage(message)) {
+    console.info("[anonwave_submit]", { reason: "silent_policy_drop" });
     return NextResponse.json({ ok: true });
   }
 
   const env = getServerEnv();
   const hasLevelProof =
     payload.zkLevelProof !== undefined && payload.zkLevelProof !== null;
-  const levelLabel = await verifyLevelProof(payload.zkLevelProof);
+  const levelProofResult = await verifyLevelProofDetailed(payload.zkLevelProof);
 
-  if (hasLevelProof && levelLabel === "0") {
+  if (hasLevelProof && !levelProofResult.ok) {
+    logSubmitIssue("level_proof_failed", {
+      detail: classifyLevelProofDetail(levelProofResult.detail),
+      reason: levelProofResult.reason,
+      status: levelProofResult.status,
+    });
+
     return NextResponse.json(
       {
-        error: "Level proof could not be verified. Verify again or use Level 0.",
+        error: getLevelProofError(levelProofResult),
       },
       { status: 400 },
     );
   }
 
   const postResult = await postToWave({
-    message: formatWaveMessageWithLevel(message, levelLabel),
+    message: formatWaveMessageWithLevel(message, levelProofResult.levelLabel),
     waveId: env.waveId,
   });
 
   if (!postResult.ok) {
+    logSubmitIssue("wave_post_failed", { status: postResult.status });
     return NextResponse.json(
       {
         error: postResult.error,

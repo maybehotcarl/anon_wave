@@ -7,6 +7,7 @@ type VerifyTurnstileInput = {
 
 type VerifyTurnstileResult = {
   error: string;
+  errorCodes?: string[];
   ok: boolean;
   status: number;
 };
@@ -72,9 +73,13 @@ export async function verifyTurnstile({
   const result = (await response.json()) as TurnstileSiteVerifyResponse;
 
   if (!result.success) {
+    const errorCodes = result["error-codes"] ?? [];
+
     return {
-      error:
-        result["error-codes"]?.join(", ") ?? "Captcha verification did not succeed.",
+      error: errorCodes.includes("timeout-or-duplicate")
+        ? "Captcha expired. Please complete it again."
+        : errorCodes.join(", ") || "Captcha verification did not succeed.",
+      errorCodes,
       ok: false,
       status: 400,
     };
