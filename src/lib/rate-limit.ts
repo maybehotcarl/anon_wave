@@ -15,11 +15,13 @@ type LocalBucket = {
 };
 
 const localBuckets = new Map<string, LocalBucket>();
+const localSingleUseTokens = new Map<string, number>();
+let upstashRedis: Redis | null = null;
 let upstashLimiter: Ratelimit | null = null;
 
-function getUpstashLimiter() {
-  if (upstashLimiter) {
-    return upstashLimiter;
+function getUpstashRedis() {
+  if (upstashRedis) {
+    return upstashRedis;
   }
 
   const env = getServerEnv();
@@ -28,10 +30,25 @@ function getUpstashLimiter() {
     return null;
   }
 
-  const redis = new Redis({
+  upstashRedis = new Redis({
     token: env.upstashToken,
     url: env.upstashUrl,
   });
+
+  return upstashRedis;
+}
+
+function getUpstashLimiter() {
+  if (upstashLimiter) {
+    return upstashLimiter;
+  }
+
+  const redis = getUpstashRedis();
+  if (!redis) {
+    return null;
+  }
+
+  const env = getServerEnv();
 
   upstashLimiter = new Ratelimit({
     redis,
@@ -93,4 +110,42 @@ export async function consumeSubmissionQuota(identifier: string) {
     resetAt: result.reset,
     success: result.success,
   } satisfies RateLimitResult;
+}
+
+function consumeLocalSingleUseToken(key: string, expiresAtMs: number) {
+  const now = Date.now();
+
+  for (const [tokenKey, tokenExpiresAt] of localSingleUseTokens.entries()) {
+    if (tokenExpiresAt <= now) {
+      localSingleUseTokens.delete(tokenKey);
+    }
+  }
+
+  if (localSingleUseTokens.has(key)) {
+    return false;
+  }
+
+  localSingleUseTokens.set(key, expiresAtMs);
+  return true;
+}
+
+export async function consumeSingleUseToken(options: {
+  expiresAtMs: number;
+  scope: string;
+  tokenId: string;
+}) {
+  const key = `${options.scope}:${options.tokenId}`;
+  const ttlMs = Math.max(1_000, options.expiresAtMs - Date.now());
+  const redis = getUpstashRedis();
+
+  if (!redis) {
+    return consumeLocalSingleUseToken(key, Date.now() + ttlMs);
+  }
+
+  const result = await redis.set(key, "1", {
+    nx: true,
+    px: ttlMs,
+  });
+
+  return result === "OK";
 }

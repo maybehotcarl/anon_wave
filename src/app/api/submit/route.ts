@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
 import { formatWaveMessageWithLevel } from "@/lib/level-buckets";
 import { shouldSilentlyDropMessage } from "@/lib/message-policy";
-import { consumeSubmissionQuota } from "@/lib/rate-limit";
+import { consumeSingleUseToken, consumeSubmissionQuota } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { postToWave } from "@/lib/wave-adapter";
 import {
-  verifyLevelProofDetailed,
-  type VerifyLevelProofResult,
-} from "@/lib/zk-level-verification";
+  verifyLevelAttestationDetailed,
+  type VerifyLevelAttestationResult,
+} from "@/lib/zk-level-attestation";
 
 export const dynamic = "force-dynamic";
 
@@ -38,61 +38,31 @@ function logSubmitIssue(
   });
 }
 
-function getLevelProofError(result: VerifyLevelProofResult) {
+function getLevelAttestationError(result: VerifyLevelAttestationResult) {
   if (result.ok) {
     return "";
   }
 
-  const detail = result.detail?.toLowerCase() ?? "";
-
-  if (detail.includes("nullifier") || detail.includes("replay")) {
-    return "Level proof was already used. Verify again and submit with the new proof.";
+  if (result.reason === "expired") {
+    return "Level receipt expired. Verify again or use Level 0.";
   }
 
-  if (result.reason === "stale_root") {
-    return "Level proof is from an older 6529 tree. Verify again and submit with the new proof.";
-  }
-
-  if (
-    result.reason === "root_http_error" ||
-    result.reason === "root_request_failed" ||
-    result.reason === "root_response_malformed"
-  ) {
-    return "Current 6529 level tree could not be checked. Try again, or use Level 0.";
-  }
-
-  return "Level proof could not be verified. Verify again or use Level 0.";
-}
-
-function classifyLevelProofDetail(detail?: string) {
-  const lowerDetail = detail?.toLowerCase() ?? "";
-
-  if (!lowerDetail) {
-    return undefined;
-  }
-
-  if (lowerDetail.includes("nullifier") || lowerDetail.includes("replay")) {
-    return "replay_or_nullifier";
-  }
-
-  if (lowerDetail.includes("invalid")) {
-    return "invalid_proof";
-  }
-
-  if (lowerDetail.includes("stale") || lowerDetail.includes("expired")) {
-    return "stale_or_expired";
-  }
-
-  return "provided";
+  return "Level receipt could not be verified. Verify again or use Level 0.";
 }
 
 export async function POST(request: NextRequest) {
-  let payload: { message?: unknown; turnstileToken?: unknown; zkLevelProof?: unknown };
+  let payload: {
+    message?: unknown;
+    turnstileToken?: unknown;
+    zkLevelAttestation?: unknown;
+    zkLevelProof?: unknown;
+  };
 
   try {
     payload = (await request.json()) as {
       message?: unknown;
       turnstileToken?: unknown;
+      zkLevelAttestation?: unknown;
       zkLevelProof?: unknown;
     };
   } catch {
@@ -167,27 +137,62 @@ export async function POST(request: NextRequest) {
   }
 
   const env = getServerEnv();
-  const hasLevelProof =
+  const hasLegacyLevelProof =
     payload.zkLevelProof !== undefined && payload.zkLevelProof !== null;
-  const levelProofResult = await verifyLevelProofDetailed(payload.zkLevelProof);
+  const hasLevelAttestation =
+    payload.zkLevelAttestation !== undefined && payload.zkLevelAttestation !== null;
+  const levelAttestationResult = hasLevelAttestation
+    ? verifyLevelAttestationDetailed(payload.zkLevelAttestation)
+    : null;
 
-  if (hasLevelProof && !levelProofResult.ok) {
-    logSubmitIssue("level_proof_failed", {
-      detail: classifyLevelProofDetail(levelProofResult.detail),
-      reason: levelProofResult.reason,
-      status: levelProofResult.status,
-    });
+  if (hasLegacyLevelProof && !hasLevelAttestation) {
+    logSubmitIssue("legacy_level_proof_rejected");
 
     return NextResponse.json(
       {
-        error: getLevelProofError(levelProofResult),
+        error: "Level proof must be verified with zkyc first. Verify again or use Level 0.",
       },
       { status: 400 },
     );
   }
 
+  if (levelAttestationResult && !levelAttestationResult.ok) {
+    logSubmitIssue("level_attestation_failed", {
+      reason: levelAttestationResult.reason,
+    });
+
+    return NextResponse.json(
+      {
+        error: getLevelAttestationError(levelAttestationResult),
+      },
+      { status: 400 },
+    );
+  }
+
+  if (levelAttestationResult?.ok) {
+    const consumed = await consumeSingleUseToken({
+      expiresAtMs: levelAttestationResult.expiresAtMs,
+      scope: "level-attestation",
+      tokenId: levelAttestationResult.jti,
+    });
+
+    if (!consumed) {
+      logSubmitIssue("level_attestation_replay");
+
+      return NextResponse.json(
+        {
+          error: "Level receipt was already used. Verify again or use Level 0.",
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   const postResult = await postToWave({
-    message: formatWaveMessageWithLevel(message, levelProofResult.levelLabel),
+    message: formatWaveMessageWithLevel(
+      message,
+      levelAttestationResult?.levelLabel ?? "0",
+    ),
     waveId: env.waveId,
   });
 

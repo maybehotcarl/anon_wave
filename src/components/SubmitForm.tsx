@@ -1,6 +1,6 @@
 "use client";
 
-import type { BrowserProofResult, ZKClient } from "@6529/zk-service/browser";
+import type { LevelBucketAttestation, ZKClient } from "@6529/zk-service/browser";
 import Script from "next/script";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
@@ -42,10 +42,12 @@ const MAX_MESSAGE_LENGTH = 1500;
 const SUBMIT_TIMEOUT_MS = 30000;
 const ZK_API_URL = "https://zkyc.solutions";
 const ZK_ARTIFACT_BASE_URL = "https://zkyc.solutions/api/artifacts";
+const ZK_API_TIMEOUT_MS = 120000;
+const ZK_ATTESTATION_AUDIENCE = "anonwave.live";
 
 type VerifiedLevelProof = {
+  attestation: LevelBucketAttestation;
   bucket: LevelBucket;
-  proofResult: BrowserProofResult;
 };
 
 export function SubmitForm({
@@ -121,7 +123,7 @@ export function SubmitForm({
         apiUrl: ZK_API_URL,
         artifactBaseUrl: ZK_ARTIFACT_BASE_URL,
         getAuthToken: () => walletProofJwtRef.current,
-        timeoutMs: 15000,
+        timeoutMs: ZK_API_TIMEOUT_MS,
         retries: 2,
         retryDelayMs: 250,
       });
@@ -290,11 +292,29 @@ export function SubmitForm({
               }
             },
           );
+          setVerificationStatus({
+            tone: "idle",
+            text: `Verifying level ${bucket.label} with zkyc...`,
+          });
 
-          setLevelProof({ bucket, proofResult });
+          const verification = await zk.verifyProof(proofResult, {
+            attestation: {
+              audience: ZK_ATTESTATION_AUDIENCE,
+            },
+          });
+
+          if (!verification.valid) {
+            throw new Error(verification.reason ?? "Proof verification rejected");
+          }
+
+          if (!verification.attestation) {
+            throw new Error("The private verifier did not return a level receipt.");
+          }
+
+          setLevelProof({ bucket, attestation: verification.attestation });
           setVerificationStatus({
             tone: "success",
-            text: `Prepared private proof for 6529 level ${bucket.label}. The drop will show only this bucket.`,
+            text: `Prepared private verification for 6529 level ${bucket.label}. The drop will show only this bucket.`,
           });
           resetTurnstileChallenge();
           return;
@@ -345,7 +365,7 @@ export function SubmitForm({
         body: JSON.stringify({
           message,
           turnstileToken,
-          zkLevelProof: levelProof?.proofResult,
+          zkLevelAttestation: levelProof?.attestation.token,
         }),
       });
     } catch (error) {
@@ -443,8 +463,8 @@ export function SubmitForm({
           <div className="privacy-explainer">
             <p>
               <strong>Still anonymous.</strong> The proof is made in your
-              browser and talks directly to zkyc.solutions. Anonwave does not
-              receive your wallet address, exact level, or signature.
+              browser and verified directly by zkyc.solutions. Anonwave does
+              not receive your wallet address, exact level, or signature.
             </p>
             <p>
               The drop sent to the wave contains only your message and the
