@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL("https://anonwave.live"),
   title: "anonwave.live — say what you actually think",
-  description: "Anonymous honest feedback, rumors, and gossip posted straight into the 6529 Anon Wave. No wallet. No login. No trail.",
+  description: "Anonymous honest feedback, rumors, and gossip posted straight into the 6529 Anon Wave. No wallet required. No login. No trail.",
 };
 
 export default function RootLayout({

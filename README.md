@@ -12,8 +12,13 @@ Anonymous posting frontend for the 6529 Anon Wave.
 ## Privacy boundary
 
 - Anonymous users do not log in
+- 6529 level verification is optional; users who skip it post as level 0
+- When a user verifies a level bucket, the browser talks directly to `https://zkyc.solutions` for the wallet challenge, signature verification, proof data, and artifacts
+- anonwave does not proxy zkyc requests and does not receive the user's wallet address, wallet signature, or exact 6529 level during proof preparation
+- The anonwave submit request contains the message, the Turnstile token, and optionally the browser-generated level proof payload; the wave output prints only the broad level bucket
 - Client IP is only used server-side for captcha verification and rate limiting
 - IP, user-agent, and location data are not attached to the 6529 drop payload
+- Current caveat: the submit endpoint sanity-checks the level proof payload, supported bucket, and current zkyc tree root. Full server-side Groth16 verification should be restored with a production-fast verifier before treating level buckets as adversarially enforced.
 
 ## Environment
 

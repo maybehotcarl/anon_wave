@@ -40,8 +40,8 @@ type SubmitFormProps = {
 
 const MAX_MESSAGE_LENGTH = 1500;
 const SUBMIT_TIMEOUT_MS = 30000;
-const ZK_API_URL = "/api/zkyc";
-const ZK_ARTIFACT_BASE_URL = "/api/zkyc/api/artifacts";
+const ZK_API_URL = "https://zkyc.solutions";
+const ZK_ARTIFACT_BASE_URL = "https://zkyc.solutions/api/artifacts";
 
 type VerifiedLevelProof = {
   bucket: LevelBucket;
@@ -63,7 +63,7 @@ export function SubmitForm({
     text: string;
   }>({
     tone: "idle",
-    text: "Optional: verify a 6529 level bucket privately. Skip it to post as level 0.",
+    text: "Optional: prepare a private 6529 level proof. Skip it to post as level 0.",
   });
   const [status, setStatus] = useState<{
     tone: "idle" | "success" | "error";
@@ -294,7 +294,7 @@ export function SubmitForm({
           setLevelProof({ bucket, proofResult });
           setVerificationStatus({
             tone: "success",
-            text: `Prepared private proof for 6529 level ${bucket.label}. It will be verified when you post.`,
+            text: `Prepared private proof for 6529 level ${bucket.label}. The drop will show only this bucket.`,
           });
           resetTurnstileChallenge();
           return;
@@ -323,7 +323,7 @@ export function SubmitForm({
     setLevelProof(null);
     setVerificationStatus({
       tone: "idle",
-      text: "Optional: verify a 6529 level bucket privately. Skip it to post as level 0.",
+      text: "Optional: prepare a private 6529 level proof. Skip it to post as level 0.",
     });
   }
 
@@ -438,6 +438,18 @@ export function SubmitForm({
             <h3>6529 level</h3>
             <p>
               Wave output will show level <strong>{getLevelLabel()}</strong>.
+            </p>
+          </div>
+          <div className="privacy-explainer">
+            <p>
+              <strong>Still anonymous.</strong> The proof is made in your
+              browser and talks directly to zkyc.solutions. Anonwave does not
+              receive your wallet address, exact level, or signature.
+            </p>
+            <p>
+              The drop sent to the wave contains only your message and the
+              broad level bucket. You and everyone reading the wave see the
+              same anonymous text.
             </p>
           </div>
           <div className="verification-actions">

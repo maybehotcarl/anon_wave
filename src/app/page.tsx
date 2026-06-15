@@ -21,7 +21,8 @@ export default function Home() {
           <p className="lede">
             Share the honest feedback no one will say out loud, the rumors
             worth repeating, and the gossip people need to hear — posted
-            anonymously into the 6529 Anon Wave. No wallet. No login. No trail.
+            anonymously into the 6529 Anon Wave. No wallet required. No login.
+            No trail.
           </p>
           <div className="pill-row" aria-label="product traits">
             <span>Fully anonymous</span>

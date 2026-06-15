@@ -277,6 +277,15 @@ textarea {
   color: var(--text);
 }
 
+.privacy-explainer {
+  display: grid;
+  gap: 6px;
+}
+
+.privacy-explainer p {
+  margin: 0;
+}
+
 .verification-actions {
   display: flex;
   flex-wrap: wrap;
